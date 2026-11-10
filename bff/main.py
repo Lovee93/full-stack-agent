@@ -1,5 +1,4 @@
 import os
-import json
 import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -37,7 +36,7 @@ async def lifespan(app: FastAPI):
     client = agentplatform.Client(project=project, location=location)
     app.state.client = client
     app.state.engine_id = engine_id
-    app.state.remote_agent = client.agent_engines.get(name=engine_id)
+    app.state.remote_agent = client.runtimes.get(name=engine_id)
     yield
 
 
@@ -67,7 +66,7 @@ async def create_new_chat_session(request: CreateSessionRequest):
     client = app.state.client
     engine_id = app.state.engine_id
     # This invokes the underlying async method on your agent to create a session
-    session_operation = await client.aio.agent_engines.sessions.create(name=engine_id, user_id=request.user_id)
+    session_operation = await client.aio.sessions.create(name=engine_id, user_id=request.user_id)
     session = session_operation.response.name
     return {
         "session_id": session.split("/")[-1],
@@ -75,39 +74,23 @@ async def create_new_chat_session(request: CreateSessionRequest):
     }
 
 async def get_agent_response_async(
-    client, engine_id: str, user_id: str, message: str, session_id: str
+    remote_agent, user_id: str, message: str, session_id: str
 ) -> str:
     """Helper that collects the ADK stream into a single complete response string."""
     full_response = ""
-    async for chunk in client.agent_engines._async_stream_query(
-        name=engine_id,
-        config={
-            "class_method": "async_stream_query",
-            "input": {
-                "user_id": user_id,
-                "message": message,
-                "session_id": session_id,
-            }
-        }
+    async for event in remote_agent.async_stream_query(
+        user_id=user_id,
+        session_id=session_id,
+        message=message,
     ):
-        if hasattr(chunk, "body") and chunk.body:
-            for line in chunk.body.split("\n"):
-                line = line.strip()
-                if line:
-                    if line.startswith("data:"):
-                        line = line[5:].strip()
-                    try:
-                        event = json.loads(line)
-                        if isinstance(event, dict):
-                            content = event.get("content") or event.get("response", {}).get("content") or {}
-                            parts = content.get("parts", []) if isinstance(content, dict) else []
-                            for part in parts:
-                                if isinstance(part, dict) and "text" in part:
-                                    full_response += part["text"]
-                                elif isinstance(part, str):
-                                    full_response += part
-                    except Exception:
-                        pass
+        if isinstance(event, dict):
+            content = event.get("content") or event.get("response", {}).get("content") or {}
+            parts = content.get("parts", []) if isinstance(content, dict) else []
+            for part in parts:
+                if isinstance(part, dict) and "text" in part:
+                    full_response += part["text"]
+                elif isinstance(part, str):
+                    full_response += part
     return full_response
 
 
@@ -115,8 +98,7 @@ async def get_agent_response_async(
 async def chat_with_agent(request: ChatRequest):
     # Clean non-streaming async call
     response_text = await get_agent_response_async(
-        client=app.state.client,
-        engine_id=app.state.engine_id,
+        remote_agent=app.state.remote_agent,
         user_id=request.user_id,
         message=request.message,
         session_id=request.session_id,

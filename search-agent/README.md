@@ -22,7 +22,7 @@ search-agent/
 
 Before you begin, ensure you have:
 - **uv**: Python package manager (used for all dependency management in this project) - [Install](https://docs.astral.sh/uv/getting-started/installation/) ([add packages](https://docs.astral.sh/uv/concepts/dependencies/) with `uv add <package>`)
-- **agents-cli**: Agents CLI - Install with `uv tool install google-agents-cli`
+- **agents-cli**: Agents CLI - Install with `uv tool install google-agents-cli==1.13.0`
 - **Google Cloud SDK**: For GCP services - [Install](https://cloud.google.com/sdk/docs/install)
 
 
@@ -31,7 +31,7 @@ Before you begin, ensure you have:
 Install `agents-cli` and its skills if not already installed:
 
 ```bash
-uvx google-agents-cli setup
+uvx google-agents-cli==1.13.0 setup
 ```
 
 Install required packages:

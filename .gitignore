@@ -55,3 +55,4 @@ Thumbs.db
 # ADK & Cloud CLI
 .adk/
 .google-agents-cli/
+**/deployment_metadata.json
